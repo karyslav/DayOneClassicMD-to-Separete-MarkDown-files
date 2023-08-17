@@ -1,0 +1,73 @@
+on run {input, parameters}
+    set filePath to POSIX path of (item 1 of input)
+    set exportFolderPath to (do shell script "dirname " & quoted form of filePath) & "/export"
+    
+    -- Ensure export directory exists
+    do shell script "mkdir -p " & quoted form of exportFolderPath
+    
+    -- Read file content as UTF-8
+    set fileContent to do shell script "cat " & quoted form of filePath & " | iconv -f utf-8 -t utf-8"
+    
+    -- Split file into entries
+    set oldDelimiters to AppleScript's text item delimiters
+    set AppleScript's text item delimiters to "\tDate:\t"
+    set entries to every text item of fileContent
+    set AppleScript's text item delimiters to oldDelimiters
+    
+    repeat with i from 2 to count of entries
+        set entry to item i of entries
+        
+        -- Extract and format the date-time from the entry
+        set dateTime to do shell script "
+        echo " & quoted form of entry & " | 
+        grep -oE '^[0-9]{1,2} [A-Za-z]+ [0-9]{4} [0-9]{1,2}:[0-9]{2}' | 
+        awk '{print $1,$2,$3,$4}' | 
+        while read day month year time; do 
+            hour=$(echo $time | cut -d: -f1)
+            minute=$(echo $time | cut -d: -f2)
+            case $month in 
+                January) monthNum='01' ;; 
+                February) monthNum='02' ;;
+                March) monthNum='03' ;;
+                April) monthNum='04' ;;
+                May) monthNum='05' ;;
+                June) monthNum='06' ;;
+                July) monthNum='07' ;;
+                August) monthNum='08' ;;
+                September) monthNum='09' ;;
+                October) monthNum='10' ;;
+                November) monthNum='11' ;;
+                December) monthNum='12' ;;
+            esac;
+            printf \"%04d-%02d-%02d-%02d-%02d\" $year $((10#$monthNum)) $((10#$day)) $((10#$hour)) $((10#$minute))
+        done
+        "
+        
+        if dateTime is not equal to "" then
+            -- Generate hash of the content
+            set hashValue to do shell script "echo " & quoted form of entry & " | shasum -a 256 | awk '{print $1}'"
+            
+            -- Check if a file with the same hash exists
+            set existingFiles to do shell script "find " & quoted form of exportFolderPath & " -name '*-h-" & hashValue & ".md'"
+            
+            if existingFiles is equal to "" then
+                -- Generate filename and write the entry
+                set filename to dateTime & "-h-" & hashValue & ".md"
+                set entryPath to exportFolderPath & "/" & filename
+                do shell script "echo " & quoted form of entry & " | iconv -f utf-8 -t utf-8 > " & quoted form of entryPath
+                
+                -- Set the modification and access dates of the file using touch
+                set formattedDate to (text 1 thru 4 of dateTime) & (text 6 thru 7 of dateTime) & (text 9 thru 10 of dateTime) & (text 12 thru 13 of dateTime) & (text 15 thru 16 of dateTime)
+                try
+                    do shell script "touch -t " & formattedDate & " " & quoted form of entryPath
+                on error
+                    display dialog "Failed to set date for: " & entryPath
+                end try
+            end if
+        else
+            display dialog "Failed to extract date-time from entry: " & entry
+        end if
+    end repeat
+    
+    return input
+end run
