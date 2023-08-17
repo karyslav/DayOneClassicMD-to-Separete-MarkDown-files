@@ -20,3 +20,5 @@ If you export the file from DayOne again, and place it in the same folder, run t
 Filename of every item starts with time and date of creation, it is also set up as date of ceration of the file, followed by hash definig its contents (if there is a change).
 
 Whole script is provided as it is, no guarantees given. I just want to make it public if anyone find it useful.
+
+I used it for importing my writing notes to the Obsidian, so I have it in separate files and not a single one.
